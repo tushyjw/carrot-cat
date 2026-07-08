@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Carrot Catcher</title>
+<title>Carrot Maze - Fan Game</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -15,6 +15,12 @@
     min-height: 100vh;
     font-family: monospace;
     user-select: none;
+  }
+  #disclaimer {
+    color: rgba(255,255,255,0.6);
+    font-size: 11px;
+    margin-bottom: 8px;
+    text-align: center;
   }
   #game-wrap {
     background: #4a2200;
@@ -65,22 +71,30 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(0,0,0,0.75);
+    background: rgba(0,0,0,0.78);
     border-radius: 0 0 12px 12px;
     z-index: 10;
   }
   #overlay h1 {
     color: #ffe060;
-    font-size: 38px;
+    font-size: 36px;
     text-shadow: 3px 3px 0 #a05000;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     text-align: center;
+  }
+  #overlay .subtitle {
+    color: #ffb040;
+    font-size: 13px;
+    margin-bottom: 14px;
+    text-align: center;
+    opacity: 0.8;
   }
   #overlay p {
     color: #fff;
-    font-size: 16px;
+    font-size: 15px;
     margin-bottom: 20px;
     text-align: center;
+    line-height: 1.8;
   }
   #overlay button {
     background: #ff8020;
@@ -98,10 +112,10 @@
   #overlay button:active { transform: translateY(3px); border-bottom-width: 2px; }
   #msg {
     position: absolute;
-    top: 50%;
+    top: 40%;
     left: 50%;
     transform: translate(-50%,-50%);
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 900;
     color: #ffe060;
     text-shadow: 2px 2px 0 #a05000;
@@ -110,11 +124,12 @@
     text-align: center;
     opacity: 0;
     transition: opacity 0.3s;
+    white-space: nowrap;
   }
   #keys-hint {
-    color: rgba(255,255,255,0.5);
-    font-size: 13px;
-    margin-top: 10px;
+    color: rgba(255,255,255,0.45);
+    font-size: 12px;
+    margin-top: 8px;
     text-align: center;
   }
   #fireworks-canvas {
@@ -127,6 +142,8 @@
 </style>
 </head>
 <body>
+
+<div id="disclaimer">Unofficial fan game &mdash; not affiliated with or endorsed by any rights holder</div>
 
 <div id="game-wrap">
   <div id="hud">
@@ -145,19 +162,22 @@
     <canvas id="fireworks-canvas" width="598" height="390"></canvas>
     <div id="msg"></div>
     <div id="overlay">
-      <h1>🥕 Carrot Catcher</h1>
-      <p>Eat all the carrots before time runs out!<br>
-         Big carrot = 20 pts &nbsp;|&nbsp; Small carrot = 1 pt<br><br>
-         <b>Arrow keys</b> to move
+      <h1>Carrot Maze</h1>
+      <div class="subtitle">Unofficial fan game</div>
+      <p>
+        Eat every carrot before time runs out!<br>
+        Big carrot = <b>20 pts</b> &nbsp;|&nbsp; Small carrot = <b>1 pt</b><br>
+        You have <b>7 minutes</b> to clear the maze.<br><br>
+        Arrow keys to move
       </p>
       <button onclick="startGame()">Play!</button>
     </div>
   </div>
-  <div id="keys-hint">Arrow keys to move</div>
+  <div id="keys-hint">Arrow keys to move &nbsp;|&nbsp; Eat every carrot to win</div>
 </div>
 
 <script>
-// ─── Audio Engine ───────────────────────────────────────────────────────────
+// ─── Audio Engine ────────────────────────────────────────────────────────────
 const AC = new (window.AudioContext || window.webkitAudioContext)();
 
 function playTone(freq, type, dur, vol=0.18, startDelay=0) {
@@ -172,9 +192,7 @@ function playTone(freq, type, dur, vol=0.18, startDelay=0) {
   o.stop(AC.currentTime + startDelay + dur + 0.01);
 }
 
-function sfxMove() {
-  playTone(280, 'sine', 0.04, 0.06);
-}
+function sfxMove() { playTone(280, 'sine', 0.04, 0.06); }
 
 function sfxEatSmall() {
   playTone(520, 'square', 0.06, 0.12);
@@ -195,7 +213,6 @@ function sfxTimeUp() {
 }
 
 function sfxFirework() {
-  // Rising whistle + boom
   const o = AC.createOscillator();
   const g = AC.createGain();
   o.connect(g); g.connect(AC.destination);
@@ -205,22 +222,20 @@ function sfxFirework() {
   g.gain.setValueAtTime(0.2, AC.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.4);
   o.start(); o.stop(AC.currentTime + 0.42);
-
-  // Boom burst
   setTimeout(() => {
-    const noise = AC.createOscillator();
+    const n = AC.createOscillator();
     const ng = AC.createGain();
-    noise.connect(ng); ng.connect(AC.destination);
-    noise.type = 'sawtooth';
-    noise.frequency.setValueAtTime(80, AC.currentTime);
+    n.connect(ng); ng.connect(AC.destination);
+    n.type = 'sawtooth';
+    n.frequency.setValueAtTime(80, AC.currentTime);
     ng.gain.setValueAtTime(0.3, AC.currentTime);
     ng.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.35);
-    noise.start(); noise.stop(AC.currentTime + 0.37);
+    n.start(); n.stop(AC.currentTime + 0.37);
   }, 400);
 }
 
-// ─── Maze Definition ────────────────────────────────────────────────────────
-// 1=wall, 0=corridor
+// ─── Maze ────────────────────────────────────────────────────────────────────
+// 1 = wall (tan block), 0 = dark corridor (walkable)
 const RAW = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   [1,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,1],
@@ -249,41 +264,37 @@ const CW = 598, CH = 390;
 const CELL = Math.min(Math.floor(CW/COLS), Math.floor(CH/ROWS));
 const OX = Math.floor((CW - COLS*CELL)/2);
 const OY = Math.floor((CH - ROWS*CELL)/2);
-
-// Big carrot at centre corridor
 const BIG_R = 9, BIG_C = 13;
 
-// ─── Game State ─────────────────────────────────────────────────────────────
-let maze, carrots, player, score, timeLeft, gameRunning, animFrame;
-let msgTimeout, lastMove;
-let particles = []; // firework particles
+// ─── State ───────────────────────────────────────────────────────────────────
+let maze, carrots, player, score, timeLeft, gameRunning;
+let msgTimeout, timerInterval;
+let particles = [];
+let fwActive = false, fwInterval = null, fwFrame = null;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const fwCanvas = document.getElementById('fireworks-canvas');
 const fwCtx = fwCanvas.getContext('2d');
 
-// ─── Drawing ────────────────────────────────────────────────────────────────
-const C_FLOOR = '#1e0c00';
-const C_WALL  = '#b87c30';
+// ─── Draw helpers ─────────────────────────────────────────────────────────────
+const C_FLOOR   = '#1e0c00';
+const C_WALL    = '#b87c30';
 const C_WALL_LT = '#d49848';
 const C_WALL_DK = '#7a5018';
 
 function drawMaze() {
   ctx.fillStyle = C_FLOOR;
   ctx.fillRect(0,0,CW,CH);
-
   for (let r=0; r<ROWS; r++) {
     for (let c=0; c<COLS; c++) {
       if (maze[r][c] === 1) {
         const x = OX+c*CELL, y = OY+r*CELL;
         ctx.fillStyle = C_WALL;
         ctx.fillRect(x,y,CELL,CELL);
-        // top highlight
         ctx.fillStyle = C_WALL_LT;
         ctx.fillRect(x,y,CELL,3);
         ctx.fillRect(x,y,3,CELL);
-        // bottom shade
         ctx.fillStyle = C_WALL_DK;
         ctx.fillRect(x,y+CELL-3,CELL,3);
         ctx.fillRect(x+CELL-3,y,3,CELL);
@@ -292,22 +303,16 @@ function drawMaze() {
   }
 }
 
-function drawSmallCarrot(px, py, alpha=1) {
+function drawSmallCarrot(px, py) {
   ctx.save();
-  ctx.globalAlpha = alpha;
   ctx.translate(px, py);
   const s = CELL * 0.28;
-  // body
   ctx.fillStyle = '#ff8c28';
   ctx.beginPath();
-  ctx.moveTo(0, s);
-  ctx.lineTo(-s*0.7, -s*0.4);
-  ctx.lineTo(s*0.7, -s*0.4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#c06010'; ctx.lineWidth = 0.8; ctx.stroke();
-  // leaves
-  ctx.fillStyle = '#38b010';
+  ctx.moveTo(0, s); ctx.lineTo(-s*0.7,-s*0.4); ctx.lineTo(s*0.7,-s*0.4);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#c06010'; ctx.lineWidth=0.8; ctx.stroke();
+  ctx.fillStyle='#38b010';
   for (let a=-25; a<=25; a+=25) {
     ctx.save(); ctx.rotate(a*Math.PI/180);
     ctx.beginPath(); ctx.ellipse(0,-s*0.9,s*0.22,s*0.7,0,0,Math.PI*2); ctx.fill();
@@ -320,19 +325,14 @@ function drawBigCarrot(px, py) {
   ctx.save();
   ctx.translate(px, py);
   const s = CELL * 0.52;
-  ctx.fillStyle = '#ff6010';
+  ctx.fillStyle='#ff6010';
   ctx.beginPath();
-  ctx.moveTo(0, s*1.1);
-  ctx.lineTo(-s*0.75, -s*0.5);
-  ctx.lineTo(s*0.75, -s*0.5);
-  ctx.closePath();
-  ctx.fill();
+  ctx.moveTo(0,s*1.1); ctx.lineTo(-s*0.75,-s*0.5); ctx.lineTo(s*0.75,-s*0.5);
+  ctx.closePath(); ctx.fill();
   ctx.strokeStyle='#aa3808'; ctx.lineWidth=1.5; ctx.stroke();
-  // stripe lines
   ctx.strokeStyle='rgba(160,60,10,0.45)'; ctx.lineWidth=1.2;
   ctx.beginPath(); ctx.moveTo(-s*0.3,-s*0.2); ctx.lineTo(-s*0.2,s*0.8); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(s*0.15,-s*0.4); ctx.lineTo(s*0.25,s*0.8); ctx.stroke();
-  // leaves
   ctx.fillStyle='#32aa10';
   for (let a=-30; a<=30; a+=15) {
     ctx.save(); ctx.rotate(a*Math.PI/180);
@@ -348,75 +348,64 @@ function drawRabbit(r, c, dir) {
   const s = CELL * 0.44;
   ctx.save();
   ctx.translate(px, py);
-  // rotate to face direction
   const angles = {up:-Math.PI/2, down:Math.PI/2, left:Math.PI, right:0};
   ctx.rotate(angles[dir] || 0);
-
   // body
-  ctx.fillStyle = '#f0ece0'; ctx.strokeStyle = '#c8b890'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.ellipse(0, s*0.2, s*0.7, s*0.55, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#f0ece0'; ctx.strokeStyle='#c8b890'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(0,s*0.2,s*0.7,s*0.55,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
   // head
-  ctx.beginPath(); ctx.ellipse(s*0.55, 0, s*0.45, s*0.38, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-  // ear 1
-  ctx.beginPath(); ctx.ellipse(s*0.45, -s*0.5, s*0.13, s*0.38, -0.2, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(s*0.55,0,s*0.45,s*0.38,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  // ears
+  ctx.beginPath(); ctx.ellipse(s*0.45,-s*0.5,s*0.13,s*0.38,-0.2,0,Math.PI*2); ctx.fill(); ctx.stroke();
   ctx.fillStyle='#f5b0b8';
-  ctx.beginPath(); ctx.ellipse(s*0.45, -s*0.5, s*0.07, s*0.24, -0.2, 0, Math.PI*2); ctx.fill();
-  // ear 2
-  ctx.fillStyle = '#f0ece0'; ctx.strokeStyle = '#c8b890';
-  ctx.beginPath(); ctx.ellipse(s*0.65, -s*0.48, s*0.13, s*0.38, 0.2, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(s*0.45,-s*0.5,s*0.07,s*0.24,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#f0ece0'; ctx.strokeStyle='#c8b890';
+  ctx.beginPath(); ctx.ellipse(s*0.65,-s*0.48,s*0.13,s*0.38,0.2,0,Math.PI*2); ctx.fill(); ctx.stroke();
   ctx.fillStyle='#f5b0b8';
-  ctx.beginPath(); ctx.ellipse(s*0.65, -s*0.48, s*0.07, s*0.24, 0.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*0.65,-s*0.48,s*0.07,s*0.24,0.2,0,Math.PI*2); ctx.fill();
   // eye
   ctx.fillStyle='#111';
-  ctx.beginPath(); ctx.arc(s*0.82, -s*0.1, s*0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*0.82,-s*0.1,s*0.1,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#fff';
-  ctx.beginPath(); ctx.arc(s*0.84, -s*0.13, s*0.04, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s*0.84,-s*0.13,s*0.04,0,Math.PI*2); ctx.fill();
   // nose
   ctx.fillStyle='#f5a0a0';
-  ctx.beginPath(); ctx.ellipse(s*0.97, s*0.07, s*0.1, s*0.07, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s*0.97,s*0.07,s*0.1,s*0.07,0,0,Math.PI*2); ctx.fill();
   // tail
   ctx.fillStyle='#fff'; ctx.strokeStyle='#d0ccb8'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.arc(-s*0.6, s*0.1, s*0.2, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-s*0.6,s*0.1,s*0.2,0,Math.PI*2); ctx.fill(); ctx.stroke();
   ctx.restore();
 }
 
 function drawAll() {
   drawMaze();
-  // draw carrots
   for (let r=0; r<ROWS; r++) {
     for (let c=0; c<COLS; c++) {
       if (!carrots[r][c]) continue;
       const px = OX+c*CELL+CELL/2;
       const py = OY+r*CELL+CELL/2;
-      if (r===BIG_R && c===BIG_C) {
-        drawBigCarrot(px, py);
-      } else {
-        drawSmallCarrot(px, py);
-      }
+      if (r===BIG_R && c===BIG_C) drawBigCarrot(px,py);
+      else drawSmallCarrot(px,py);
     }
   }
   drawRabbit(player.r, player.c, player.dir);
 }
 
-// ─── Fireworks ──────────────────────────────────────────────────────────────
-let fwActive = false;
-let fwInterval = null;
-let fwFrame = null;
-
+// ─── Fireworks ───────────────────────────────────────────────────────────────
 function spawnFirework(x, y) {
-  const colors = ['#ff4040','#ffee00','#40ff80','#40c0ff','#ff80ff','#ff8020','#ffffff'];
-  const count = 40 + Math.floor(Math.random()*20);
+  const colors = ['#ff4040','#ffee00','#40ff80','#40c0ff','#ff80ff','#ff8020','#ffffff','#ff60a0'];
+  const count = 45 + Math.floor(Math.random()*20);
   for (let i=0; i<count; i++) {
     const angle = Math.random()*Math.PI*2;
-    const speed = 2 + Math.random()*5;
+    const speed = 2 + Math.random()*5.5;
     particles.push({
       x, y,
       vx: Math.cos(angle)*speed,
       vy: Math.sin(angle)*speed,
       life: 1.0,
-      decay: 0.018 + Math.random()*0.018,
+      decay: 0.016 + Math.random()*0.018,
       color: colors[Math.floor(Math.random()*colors.length)],
-      size: 2 + Math.random()*3
+      size: 2 + Math.random()*3.5
     });
   }
 }
@@ -426,7 +415,7 @@ function updateFireworks() {
   for (let i=particles.length-1; i>=0; i--) {
     const p = particles[i];
     p.x += p.vx; p.y += p.vy;
-    p.vy += 0.08; // gravity
+    p.vy += 0.09;
     p.vx *= 0.98; p.vy *= 0.98;
     p.life -= p.decay;
     if (p.life <= 0) { particles.splice(i,1); continue; }
@@ -437,31 +426,25 @@ function updateFireworks() {
     fwCtx.fill();
   }
   fwCtx.globalAlpha = 1;
-  if (particles.length > 0 || fwActive) {
-    fwFrame = requestAnimationFrame(updateFireworks);
-  } else {
-    fwCtx.clearRect(0,0,CW,CH);
-  }
+  if (particles.length > 0 || fwActive) fwFrame = requestAnimationFrame(updateFireworks);
+  else fwCtx.clearRect(0,0,CW,CH);
 }
 
 function startFireworks(count=6, duration=4000) {
   fwActive = true;
-  particles = [];
   sfxFirework();
-
   let launched = 0;
   fwInterval = setInterval(() => {
-    const x = 80 + Math.random()*(CW-160);
-    const y = 40 + Math.random()*(CH*0.6);
+    const x = 60 + Math.random()*(CW-120);
+    const y = 30 + Math.random()*(CH*0.65);
     spawnFirework(x, y);
     sfxFirework();
     launched++;
     if (launched >= count) {
       clearInterval(fwInterval);
-      setTimeout(() => { fwActive = false; }, 1500);
+      setTimeout(() => { fwActive = false; }, 1800);
     }
   }, duration/count);
-
   if (fwFrame) cancelAnimationFrame(fwFrame);
   updateFireworks();
 }
@@ -473,11 +456,10 @@ function stopFireworks() {
   fwCtx.clearRect(0,0,CW,CH);
 }
 
-// ─── HUD ────────────────────────────────────────────────────────────────────
-function pad(n, len=3) { return String(Math.max(0,n)).padStart(len,'0'); }
+// ─── HUD ─────────────────────────────────────────────────────────────────────
+function pad(n, len=3) { return String(Math.max(0,Math.floor(n))).padStart(len,'0'); }
 function fmtTime(s) {
-  const m = Math.floor(s/60);
-  const sec = s%60;
+  const m = Math.floor(s/60), sec = s%60;
   return pad(m,2)+':'+pad(sec,2);
 }
 function updateHUD() {
@@ -486,8 +468,7 @@ function updateHUD() {
   document.getElementById('timer-display').textContent = fmtTime(timeLeft);
 }
 
-// ─── Message popup ───────────────────────────────────────────────────────────
-function showMsg(text, duration=1200) {
+function showMsg(text, duration=1300) {
   const el = document.getElementById('msg');
   el.textContent = text;
   el.style.opacity = '1';
@@ -495,13 +476,12 @@ function showMsg(text, duration=1200) {
   msgTimeout = setTimeout(() => { el.style.opacity = '0'; }, duration);
 }
 
-// ─── Init ────────────────────────────────────────────────────────────────────
+// ─── Init ─────────────────────────────────────────────────────────────────────
 function initGame() {
   maze = RAW.map(r => [...r]);
   carrots = Array.from({length:ROWS}, (_,r) =>
     Array.from({length:COLS}, (_,c) => maze[r][c]===0)
   );
-  // find start: first open cell
   let startR=1, startC=1;
   outer: for (let r=1; r<ROWS; r++) for (let c=1; c<COLS; c++) {
     if (maze[r][c]===0) { startR=r; startC=c; break outer; }
@@ -516,16 +496,14 @@ function initGame() {
   drawAll();
 }
 
-// ─── Movement ────────────────────────────────────────────────────────────────
+// ─── Movement ─────────────────────────────────────────────────────────────────
 const DIRS = {
   ArrowUp:    {dr:-1,dc:0,dir:'up'},
   ArrowDown:  {dr:1, dc:0,dir:'down'},
   ArrowLeft:  {dr:0, dc:-1,dir:'left'},
   ArrowRight: {dr:0, dc:1, dir:'right'},
-  w: {dr:-1,dc:0,dir:'up'},
-  s: {dr:1, dc:0,dir:'down'},
-  a: {dr:0, dc:-1,dir:'left'},
-  d: {dr:0, dc:1, dir:'right'},
+  w:{dr:-1,dc:0,dir:'up'}, s:{dr:1,dc:0,dir:'down'},
+  a:{dr:0,dc:-1,dir:'left'}, d:{dr:0,dc:1,dir:'right'},
 };
 
 document.addEventListener('keydown', e => {
@@ -533,19 +511,17 @@ document.addEventListener('keydown', e => {
   const d = DIRS[e.key];
   if (!d) return;
   e.preventDefault();
+  if (AC.state === 'suspended') AC.resume();
 
   const nr = player.r + d.dr;
   const nc = player.c + d.dc;
   player.dir = d.dir;
 
   if (nr<0||nc<0||nr>=ROWS||nc>=COLS||maze[nr][nc]===1) {
-    drawAll();
-    return;
+    drawAll(); return;
   }
 
   player.r = nr; player.c = nc;
-
-  if (AC.state === 'suspended') AC.resume();
   sfxMove();
 
   if (carrots[nr][nc]) {
@@ -554,50 +530,42 @@ document.addEventListener('keydown', e => {
     if (isBig) {
       score += 20;
       sfxEatBig();
-      showMsg('+20! Big carrot!', 1500);
+      showMsg('+20  Big carrot!', 1600);
       startFireworks(5, 3000);
     } else {
       score += 1;
       sfxEatSmall();
     }
     updateHUD();
-
-    // check all eaten
     const remaining = carrots.flat().filter(Boolean).length;
-    if (remaining === 0) {
-      setTimeout(() => winGame(), 100);
-      return;
-    }
+    if (remaining === 0) { setTimeout(winGame, 120); return; }
   }
   drawAll();
 });
 
-// ─── Timer ───────────────────────────────────────────────────────────────────
-let timerInterval = null;
+// ─── Timer ────────────────────────────────────────────────────────────────────
 function startTimer() {
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     if (!gameRunning) return;
     timeLeft--;
     updateHUD();
-    // flash timer red in last 30s
     const td = document.getElementById('timer-display');
     td.style.color = timeLeft <= 30 ? (timeLeft%2===0?'#ff4040':'#fff') : '#fff';
-    if (timeLeft <= 0) {
-      timeLeft = 0;
-      updateHUD();
-      loseGame();
-    }
+    if (timeLeft <= 0) { timeLeft=0; updateHUD(); loseGame(); }
   }, 1000);
 }
 
-// ─── Win / Lose ──────────────────────────────────────────────────────────────
+// ─── Win / Lose ───────────────────────────────────────────────────────────────
 function winGame() {
   gameRunning = false;
   clearInterval(timerInterval);
   sfxWin();
-  startFireworks(10, 5000);
-  showOverlay('🎉 You Win!', `All carrots eaten! Score: ${pad(score)}`, 'Play Again');
+  startFireworks(12, 5000);
+  const timeBonus = timeLeft;
+  score += timeBonus;
+  updateHUD();
+  showOverlay('You Win!', `All carrots eaten!<br>Time bonus: +${timeBonus} pts<br>Final score: ${pad(score,4)}`, 'Play Again');
 }
 
 function loseGame() {
@@ -605,16 +573,20 @@ function loseGame() {
   clearInterval(timerInterval);
   sfxTimeUp();
   const rem = carrots.flat().filter(Boolean).length;
-  showOverlay('⏰ Time\'s Up!', `${rem} carrots left. Score: ${pad(score)}`, 'Try Again');
+  showOverlay("Time's Up!", `${rem} carrot${rem!==1?'s':''} left.<br>Score: ${pad(score)}`, 'Try Again');
 }
 
 function showOverlay(title, desc, btn) {
   const ov = document.getElementById('overlay');
-  ov.innerHTML = `<h1>${title}</h1><p>${desc}</p><button onclick="startGame()">${btn}</button>`;
+  ov.innerHTML = `
+    <h1>${title}</h1>
+    <div class="subtitle">Unofficial fan game</div>
+    <p>${desc}</p>
+    <button onclick="startGame()">${btn}</button>`;
   ov.style.display = 'flex';
 }
 
-// ─── Start ───────────────────────────────────────────────────────────────────
+// ─── Start ────────────────────────────────────────────────────────────────────
 function startGame() {
   if (AC.state === 'suspended') AC.resume();
   stopFireworks();
@@ -626,7 +598,6 @@ function startGame() {
   drawAll();
 }
 
-// ─── Boot ────────────────────────────────────────────────────────────────────
 initGame();
 </script>
 </body>
